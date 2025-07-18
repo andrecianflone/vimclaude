@@ -653,6 +653,50 @@ function! VimClaudeStatus()
     endif
 endfunction
 
+" Function to launch Claude with specific flags
+function! s:LaunchClaudeWithFlags(flags)
+    let l:claude_cmd = g:vimclaude_claude_command
+    let l:full_cmd = l:claude_cmd . (a:flags != '' ? ' ' . a:flags : '')
+    
+    try
+        execute 'vertical terminal ' . l:full_cmd
+        if g:vimclaude_notify
+            let l:session_type = a:flags == '--continue' ? 'continuing session' : 
+                               \ a:flags == '--resume' ? 'resuming session' : 'new session'
+            echo "VimClaude: Launched Claude in terminal (" . l:session_type . ")"
+        endif
+    catch
+        echohl ErrorMsg
+        echo "VimClaude: Failed to launch Claude terminal: " . v:exception
+        echohl None
+    endtry
+endfunction
+
+" Function to show session selection menu
+function! s:ShowSessionMenu()
+    let l:choices = [
+        \ "Claude Session Options:",
+        \ "1. Continue session (--continue)",
+        \ "2. Select session (--resume)", 
+        \ "3. New session"
+    \ ]
+    
+    " Use inputlist for compatibility with all Vim versions
+    let l:choice = inputlist(l:choices)
+    
+    if l:choice == 1
+        call s:LaunchClaudeWithFlags('--continue')
+    elseif l:choice == 2
+        call s:LaunchClaudeWithFlags('--resume')
+    elseif l:choice == 3
+        call s:LaunchClaudeWithFlags('')
+    else
+        if g:vimclaude_notify
+            echo "VimClaude: Launch cancelled"
+        endif
+    endif
+endfunction
+
 function! VimClaudeLaunch()
     " Check if Claude command is available
     let l:claude_cmd = g:vimclaude_claude_command
@@ -674,17 +718,8 @@ function! VimClaudeLaunch()
         return
     endif
     
-    " Open Claude in a vertical terminal split
-    try
-        execute 'vertical terminal ' . l:claude_cmd
-        if g:vimclaude_notify
-            echo "VimClaude: Launched Claude in terminal"
-        endif
-    catch
-        echohl ErrorMsg
-        echo "VimClaude: Failed to launch Claude terminal: " . v:exception
-        echohl None
-    endtry
+    " Show session selection menu
+    call s:ShowSessionMenu()
 endfunction
 
 " Commands

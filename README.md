@@ -76,7 +76,7 @@ let g:vimclaude_no_mappings = 1
 - `:VimClaudeStop` - Stop monitoring
 - `:VimClaudeToggle` - Toggle monitoring on/off
 - `:VimClaudeStatus` - Show current monitoring status
-- `:VimClaudeLaunch` - Launch Claude in a vertical terminal split
+- `:VimClaudeLaunch` - Show session menu and launch Claude in a vertical terminal split
 - `:VimClaudeDebug [filename]` - Debug detection for a specific file (uses current file if no argument)
 
 ## Key Mappings
@@ -85,7 +85,7 @@ Default mappings (can be disabled with `g:vimclaude_no_mappings = 1`):
 
 - `<leader>vcr` - Toggle auto-reload
 - `<leader>vcs` - Show status
-- `<leader>vcl` - Launch Claude terminal
+- `<leader>vcl` - Show session menu and launch Claude terminal
 
 ## How It Works
 
@@ -109,6 +109,7 @@ Default mappings (can be disabled with `g:vimclaude_no_mappings = 1`):
 ## Use Cases
 
 - **Claude Code Integration**: Automatically refresh when Claude modifies files
+- **Session Management**: Quick access to Claude sessions with continue/resume options
 - **External Tools**: Any build system, code generator, or external editor
 - **Team Development**: When teammates modify files you have open
 - **Live Development**: Hot-reloading during development
@@ -207,6 +208,15 @@ autocmd BufRead,BufNewFile /path/to/claude/project/* let g:vimclaude_check_inter
 " Debug a specific file
 :VimClaudeDebug /path/to/project/file.py
 ```
+
+### Session Management
+When you run `:VimClaudeLaunch` or use `<leader>vcl`, a menu will appear with options:
+
+1. **Continue session** - Launches Claude with `--continue` flag to continue the most recent session
+2. **Select session** - Launches Claude with `--resume` flag, allowing you to choose which session to resume
+3. **New session** - Launches Claude without flags to start a fresh session
+
+Simply enter the number (1, 2, or 3) to select your preferred option.
 
 ### Custom Key Mappings
 ```vim
