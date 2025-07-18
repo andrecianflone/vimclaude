@@ -672,8 +672,201 @@ function! s:LaunchClaudeWithFlags(flags)
     endtry
 endfunction
 
-" Function to show session selection menu
-function! s:ShowSessionMenu()
+" Function to handle popup menu selection
+function! s:HandlePopupSelection(choice)
+    if a:choice == 1
+        call s:LaunchClaudeWithFlags('--continue')
+    elseif a:choice == 2
+        call s:LaunchClaudeWithFlags('--resume')
+    elseif a:choice == 3
+        call s:LaunchClaudeWithFlags('')
+    else
+        if g:vimclaude_notify
+            echo "VimClaude: Launch cancelled"
+        endif
+    endif
+endfunction
+
+" Function to show session selection popup (modern Vim/Neovim)
+function! s:ShowSessionPopup()
+    let l:menu_items = [
+        \ "Continue session (--continue)",
+        \ "Select session (--resume)",
+        \ "New session"
+    \ ]
+    
+    " Calculate popup dimensions
+    let l:max_width = 0
+    for l:item in l:menu_items
+        let l:item_len = len(l:item)
+        if l:item_len > l:max_width
+            let l:max_width = l:item_len
+        endif
+    endfor
+    let l:width = l:max_width + 4
+    let l:height = len(l:menu_items) + 2
+    
+    " Center the popup
+    let l:row = (&lines - l:height) / 2
+    let l:col = (&columns - l:width) / 2
+    
+    if has('nvim')
+        " Neovim implementation
+        let l:buf = nvim_create_buf(v:false, v:true)
+        
+        " Add title and menu items
+        let l:lines = ["Start Claude Code:"] + l:menu_items
+        call nvim_buf_set_lines(l:buf, 0, -1, v:false, l:lines)
+        
+        " Create popup window
+        let l:opts = {
+            \ 'relative': 'editor',
+            \ 'width': l:width,
+            \ 'height': l:height,
+            \ 'row': l:row,
+            \ 'col': l:col,
+            \ 'style': 'minimal',
+            \ 'border': 'rounded'
+        \ }
+        
+        let l:win = nvim_open_win(l:buf, v:true, l:opts)
+        
+        " Set up key mappings for navigation
+        nnoremap <buffer> <CR> :call <SID>SelectFromPopup()<CR>
+        nnoremap <buffer> <Esc> :call <SID>ClosePopup()<CR>
+        nnoremap <buffer> q :call <SID>ClosePopup()<CR>
+        nnoremap <buffer> 1 :call <SID>HandlePopupSelection(1)<CR>:call <SID>ClosePopup()<CR>
+        nnoremap <buffer> 2 :call <SID>HandlePopupSelection(2)<CR>:call <SID>ClosePopup()<CR>
+        nnoremap <buffer> 3 :call <SID>HandlePopupSelection(3)<CR>:call <SID>ClosePopup()<CR>
+        
+        " Store popup info for later use
+        let s:popup_buf = l:buf
+        let s:popup_win = l:win
+        
+        " Position cursor on first menu item
+        call nvim_win_set_cursor(l:win, [2, 0])
+        
+    else
+        " Vim 8.2+ implementation  
+        if exists('*popup_create')
+            " Test with a simple popup that stays visible
+            try
+                " Create light grey highlight
+                highlight VimClaudePopup ctermbg=254 ctermfg=0
+                
+                " Use the same simple style that worked in your test
+                let l:popup_id = popup_create([
+                    \ 'Start Claude Code:',
+                    \ '========================',
+                    \ '1. Continue last chat',
+                    \ '2. Select chat to resume',
+                    \ '3. New chat',
+                    \ '',
+                    \ 'Press number or ESC'
+                    \ ], {
+                    \ 'pos': 'center',
+                    \ 'highlight': 'VimClaudePopup',
+                    \ 'border': [],
+                    \ 'padding': [0, 1, 0, 1]
+                    \ })
+                
+                " Force redraw
+                redraw!
+                
+                " Wait for input
+                let l:choice = 0
+                while l:choice == 0
+                    let l:key = getchar()
+                    if l:key == 27  " ESC
+                        call popup_close(l:popup_id)
+                        if g:vimclaude_notify
+                            echo "VimClaude: Launch cancelled"
+                        endif
+                        return
+                    elseif l:key >= 49 && l:key <= 51  " '1' to '3'
+                        let l:choice = l:key - 48
+                        call popup_close(l:popup_id)
+                        call s:HandlePopupSelection(l:choice)
+                        return
+                    endif
+                endwhile
+                
+            catch
+                " If popup fails, show error and use fallback
+                echom "Popup error: " . v:exception
+                call s:ShowSessionMenuFallback()
+            endtry
+            
+        else
+            " Fallback to inputlist for older Vim versions
+            call s:ShowSessionMenuFallback()
+        endif
+    endif
+endfunction
+
+" Popup filter function for Vim 8.2+
+function! s:PopupFilter(winid, key)
+    if a:key == "\<Down>" || a:key == 'j'
+        let s:popup_selected = min([s:popup_selected + 1, 3])
+        call popup_setoptions(a:winid, {'cursorline': s:popup_selected + 2})
+        return 1
+    elseif a:key == "\<Up>" || a:key == 'k'
+        let s:popup_selected = max([s:popup_selected - 1, 1])
+        call popup_setoptions(a:winid, {'cursorline': s:popup_selected + 2})
+        return 1
+    elseif a:key == "\<CR>" || a:key == "\<Space>"
+        call popup_close(a:winid, s:popup_selected)
+        return 1
+    elseif a:key == "\<Esc>" || a:key == 'q'
+        call popup_close(a:winid, 0)
+        return 1
+    elseif a:key >= '1' && a:key <= '3'
+        let l:choice = str2nr(a:key)
+        call popup_close(a:winid, l:choice)
+        return 1
+    endif
+    return 0
+endfunction
+
+" Popup callback function for Vim 8.2+
+function! s:PopupCallback(winid, result)
+    call s:HandlePopupSelection(a:result)
+endfunction
+
+" Popup menu callback function
+function! s:PopupMenuCallback(winid, result)
+    if a:result > 0
+        call s:HandlePopupSelection(a:result)
+    else
+        if g:vimclaude_notify
+            echo "VimClaude: Launch cancelled"
+        endif
+    endif
+endfunction
+
+" Helper functions for Neovim popup
+function! s:SelectFromPopup()
+    let l:line = line('.')
+    let l:choice = l:line - 1  " Adjust for title line
+    if l:choice >= 1 && l:choice <= 3
+        call s:HandlePopupSelection(l:choice)
+    endif
+    call s:ClosePopup()
+endfunction
+
+function! s:ClosePopup()
+    if exists('s:popup_win')
+        call nvim_win_close(s:popup_win, v:true)
+        unlet s:popup_win
+    endif
+    if exists('s:popup_buf')
+        call nvim_buf_delete(s:popup_buf, {'force': v:true})
+        unlet s:popup_buf
+    endif
+endfunction
+
+" Fallback menu for older Vim versions
+function! s:ShowSessionMenuFallback()
     let l:choices = [
         \ "Claude Session Options:",
         \ "1. Continue session (--continue)",
@@ -681,19 +874,16 @@ function! s:ShowSessionMenu()
         \ "3. New session"
     \ ]
     
-    " Use inputlist for compatibility with all Vim versions
     let l:choice = inputlist(l:choices)
-    
-    if l:choice == 1
-        call s:LaunchClaudeWithFlags('--continue')
-    elseif l:choice == 2
-        call s:LaunchClaudeWithFlags('--resume')
-    elseif l:choice == 3
-        call s:LaunchClaudeWithFlags('')
+    call s:HandlePopupSelection(l:choice)
+endfunction
+
+" Main function to show session selection menu
+function! s:ShowSessionMenu()
+    if has('nvim') || exists('*popup_create')
+        call s:ShowSessionPopup()
     else
-        if g:vimclaude_notify
-            echo "VimClaude: Launch cancelled"
-        endif
+        call s:ShowSessionMenuFallback()
     endif
 endfunction
 

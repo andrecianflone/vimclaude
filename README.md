@@ -210,13 +210,19 @@ autocmd BufRead,BufNewFile /path/to/claude/project/* let g:vimclaude_check_inter
 ```
 
 ### Session Management
-When you run `:VimClaudeLaunch` or use `<leader>vcl`, a menu will appear with options:
+When you run `:VimClaudeLaunch` or use `<leader>vcl`, a popup window will appear in the center of your screen with session options:
 
 1. **Continue session** - Launches Claude with `--continue` flag to continue the most recent session
 2. **Select session** - Launches Claude with `--resume` flag, allowing you to choose which session to resume
 3. **New session** - Launches Claude without flags to start a fresh session
 
-Simply enter the number (1, 2, or 3) to select your preferred option.
+**Navigation:**
+- Use **arrow keys** or **j/k** to move between options
+- Press **Enter** or **Space** to select
+- Press **Esc** or **q** to cancel
+- Press **1**, **2**, or **3** to directly select an option
+
+The popup window is centered and overlays on top of your current Vim session for easy access.
 
 ### Custom Key Mappings
 ```vim
@@ -245,6 +251,7 @@ let g:vimclaude_claude_command = 'claude-dev'
 - **Neovim**: All versions
 - **Platforms**: Linux, macOS, Windows
 - **Terminal**: Vim 8.1+ or Neovim (required for `:VimClaudeLaunch` command)
+- **Popup Windows**: Vim 8.2+ or Neovim (for centered popup menu, falls back to command line menu on older versions)
 
 ## Safety Features
 
