@@ -29,6 +29,10 @@ if !exists('g:vimclaude_show_icons')
     let g:vimclaude_show_icons = 1  " Show emoji icons in notifications
 endif
 
+if !exists('g:vimclaude_claude_command')
+    let g:vimclaude_claude_command = 'claude'  " Command to launch Claude
+endif
+
 " Store file modification times
 let s:file_mtimes = {}
 
@@ -649,11 +653,46 @@ function! VimClaudeStatus()
     endif
 endfunction
 
+function! VimClaudeLaunch()
+    " Check if Claude command is available
+    let l:claude_cmd = g:vimclaude_claude_command
+    let l:check_result = system('command -v ' . shellescape(l:claude_cmd) . ' >/dev/null 2>&1; echo $?')
+    
+    if str2nr(l:check_result) != 0
+        echohl ErrorMsg
+        echo "VimClaude: Claude command '" . l:claude_cmd . "' not found in PATH"
+        echohl None
+        echo "Configure with: let g:vimclaude_claude_command = '/path/to/claude'"
+        return
+    endif
+    
+    " Check if we're in a terminal-capable Vim
+    if !has('terminal')
+        echohl ErrorMsg
+        echo "VimClaude: Terminal feature not available in this Vim version"
+        echohl None
+        return
+    endif
+    
+    " Open Claude in a vertical terminal split
+    try
+        execute 'vertical terminal ' . l:claude_cmd
+        if g:vimclaude_notify
+            echo "VimClaude: Launched Claude in terminal"
+        endif
+    catch
+        echohl ErrorMsg
+        echo "VimClaude: Failed to launch Claude terminal: " . v:exception
+        echohl None
+    endtry
+endfunction
+
 " Commands
 command! VimClaudeStart call VimClaudeStart()
 command! VimClaudeStop call VimClaudeStop()
 command! VimClaudeToggle call VimClaudeToggle()
 command! VimClaudeStatus call VimClaudeStatus()
+command! VimClaudeLaunch call VimClaudeLaunch()
 command! -nargs=? VimClaudeDebug call VimClaudeDebug(<q-args> == '' ? expand('%:p') : <q-args>)
 
 " Auto-start monitoring when Vim starts (if enabled)
@@ -672,4 +711,5 @@ endif
 if !exists('g:vimclaude_no_mappings')
     nnoremap <silent> <leader>vcr :VimClaudeToggle<CR>
     nnoremap <silent> <leader>vcs :VimClaudeStatus<CR>
+    nnoremap <silent> <leader>vcl :VimClaudeLaunch<CR>
 endif

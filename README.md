@@ -63,6 +63,9 @@ let g:vimclaude_smart_detection = 1
 " Show emoji icons in notifications (default: 1)
 let g:vimclaude_show_icons = 1
 
+" Command to launch Claude (default: 'claude')
+let g:vimclaude_claude_command = 'claude'
+
 " Disable default key mappings (default: not set)
 let g:vimclaude_no_mappings = 1
 ```
@@ -73,6 +76,7 @@ let g:vimclaude_no_mappings = 1
 - `:VimClaudeStop` - Stop monitoring
 - `:VimClaudeToggle` - Toggle monitoring on/off
 - `:VimClaudeStatus` - Show current monitoring status
+- `:VimClaudeLaunch` - Launch Claude in a vertical terminal split
 - `:VimClaudeDebug [filename]` - Debug detection for a specific file (uses current file if no argument)
 
 ## Key Mappings
@@ -81,6 +85,7 @@ Default mappings (can be disabled with `g:vimclaude_no_mappings = 1`):
 
 - `<leader>vcr` - Toggle auto-reload
 - `<leader>vcs` - Show status
+- `<leader>vcl` - Launch Claude terminal
 
 ## How It Works
 
@@ -211,7 +216,17 @@ let g:vimclaude_no_mappings = 1
 " Create your own mappings
 nnoremap <leader>cr :VimClaudeToggle<CR>
 nnoremap <leader>cs :VimClaudeStatus<CR>
+nnoremap <leader>cl :VimClaudeLaunch<CR>
 nnoremap <leader>cd :VimClaudeDebug<CR>
+```
+
+### Custom Claude Command
+```vim
+" Use a specific Claude executable path
+let g:vimclaude_claude_command = '/opt/homebrew/bin/claude'
+
+" Or use a different command entirely
+let g:vimclaude_claude_command = 'claude-dev'
 ```
 
 ## Compatibility
@@ -219,6 +234,7 @@ nnoremap <leader>cd :VimClaudeDebug<CR>
 - **Vim**: 8.0+ (requires timer support)
 - **Neovim**: All versions
 - **Platforms**: Linux, macOS, Windows
+- **Terminal**: Vim 8.1+ or Neovim (required for `:VimClaudeLaunch` command)
 
 ## Safety Features
 
