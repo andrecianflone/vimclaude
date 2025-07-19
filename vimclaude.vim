@@ -748,6 +748,49 @@ function! s:CleanupSelectionHighlight()
     endif
 endfunction
 
+" Find Claude terminal buffer
+function! s:FindClaudeTerminal()
+    " Look for buffers named "Claude" or "Claude - Selection"
+    for l:bufnr in range(1, bufnr('$'))
+        if bufexists(l:bufnr)
+            let l:bufname = bufname(l:bufnr)
+            if l:bufname =~ '^Claude'
+                " Check if it's a terminal buffer
+                if getbufvar(l:bufnr, '&buftype') == 'terminal'
+                    return l:bufnr
+                endif
+            endif
+        endif
+    endfor
+    return -1
+endfunction
+
+" Launch Claude or switch to existing terminal
+function! s:LaunchOrSwitchToClaude()
+    let l:claude_bufnr = s:FindClaudeTerminal()
+    
+    if l:claude_bufnr != -1
+        " Claude terminal exists, find its window
+        let l:winnr = bufwinnr(l:claude_bufnr)
+        if l:winnr != -1
+            " Window is visible, switch to it
+            execute l:winnr . 'wincmd w'
+            if g:vimclaude_notify
+                echo "VimClaude: Switched to existing Claude terminal"
+            endif
+        else
+            " Buffer exists but not visible, open it in vertical split
+            execute 'vertical sbuffer ' . l:claude_bufnr
+            if g:vimclaude_notify
+                echo "VimClaude: Opened existing Claude terminal"
+            endif
+        endif
+    else
+        " No Claude terminal exists, launch new one
+        call s:LaunchClaudeWithFlags('')
+    endif
+endfunction
+
 " Handle the choice from the Ask Claude menu
 function! s:HandleAskClaudeChoice(choice)
     let l:line_text = s:selection_start == s:selection_end ? 
@@ -757,7 +800,8 @@ function! s:HandleAskClaudeChoice(choice)
     if a:choice == 1
         echo "VimClaude: Ready to ask about " . l:line_text
     elseif a:choice == 2
-        echo "VimClaude: Explaining code on " . l:line_text
+        " Explain this code - launch or switch to Claude
+        call s:LaunchOrSwitchToClaude()
     elseif a:choice == 3
         echo "VimClaude: Finding bugs in " . l:line_text
     elseif a:choice == 4
