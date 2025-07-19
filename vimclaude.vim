@@ -804,11 +804,15 @@ function! s:SendExplainCommand(bufnr)
         \ 'lines ' . s:selection_start . ' to ' . s:selection_end
     let l:message = 'Look at ' . l:line_text . ' in file ' . s:selection_file . '. Please explain this code.'
     
-    " Send text to terminal with Enter key
+    " Send text to terminal
     if has('nvim')
-        call chansend(getbufvar(a:bufnr, '&channel'), l:message . "\<CR>")
+        call chansend(getbufvar(a:bufnr, '&channel'), l:message)
+        " Send Enter key separately after a longer delay
+        call timer_start(300, {-> chansend(getbufvar(a:bufnr, '&channel'), "\r")})
     else
-        call term_sendkeys(a:bufnr, l:message . "\<CR>")
+        call term_sendkeys(a:bufnr, l:message)
+        " Send Enter key separately after a longer delay
+        call timer_start(300, {-> term_sendkeys(a:bufnr, "\r")})
     endif
 endfunction
 
