@@ -657,10 +657,22 @@ function! VimClaudeAskAboutSelection() range
     " Get the visual selection line numbers
     let l:start_line = line("'<")
     let l:end_line = line("'>")
+    let l:start_col = col("'<")
+    let l:end_col = col("'>")
     
     " Store selection info for later use
     let s:selection_start = l:start_line
     let s:selection_end = l:end_line
+    
+    " Create a match to highlight the selected lines
+    if exists('w:vimclaude_selection_match')
+        call matchdelete(w:vimclaude_selection_match)
+    endif
+    
+    " Highlight the selected lines
+    let l:pattern = '\%>' . (l:start_line - 1) . 'l\%<' . (l:end_line + 1) . 'l'
+    highlight VimClaudeSelection ctermbg=darkblue ctermfg=white
+    let w:vimclaude_selection_match = matchadd('VimClaudeSelection', l:pattern, 100)
     
     " Show popup with line range
     if exists('*popup_create')
@@ -701,11 +713,15 @@ function! VimClaudeAskAboutSelection() range
                 let l:key = getchar()
                 if l:key == 27  " ESC
                     call popup_close(l:popup_id)
+                    call s:CleanupSelectionHighlight()
+                    " Restore visual selection
+                    normal! gv
                     echo "VimClaude: Cancelled"
                     return
                 elseif l:key >= 49 && l:key <= 55  " '1' to '7'
                     let l:choice = l:key - 48
                     call popup_close(l:popup_id)
+                    call s:CleanupSelectionHighlight()
                     call s:HandleAskClaudeChoice(l:choice)
                     return
                 endif
@@ -713,11 +729,22 @@ function! VimClaudeAskAboutSelection() range
             
         catch
             " If popup fails, use fallback menu
+            call s:CleanupSelectionHighlight()
+            " Try to restore visual selection
+            normal! gv
             call s:ShowAskClaudeMenuFallback()
         endtry
     else
         " Fallback for older Vim versions
         call s:ShowAskClaudeMenuFallback()
+    endif
+endfunction
+
+" Clean up the selection highlight
+function! s:CleanupSelectionHighlight()
+    if exists('w:vimclaude_selection_match')
+        call matchdelete(w:vimclaude_selection_match)
+        unlet w:vimclaude_selection_match
     endif
 endfunction
 
