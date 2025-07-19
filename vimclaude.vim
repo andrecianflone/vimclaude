@@ -663,6 +663,7 @@ function! VimClaudeAskAboutSelection() range
     " Store selection info for later use
     let s:selection_start = l:start_line
     let s:selection_end = l:end_line
+    let s:selection_file = expand('%:t')  " Just filename, not full path
     
     " Create a match to highlight the selected lines
     if exists('w:vimclaude_selection_match')
@@ -785,9 +786,87 @@ function! s:LaunchOrSwitchToClaude()
                 echo "VimClaude: Opened existing Claude terminal"
             endif
         endif
+        " Send the explain command to existing terminal
+        call s:SendExplainCommand(l:claude_bufnr)
     else
         " No Claude terminal exists, launch new one
         call s:LaunchClaudeWithFlags('')
+        " Wait a moment for terminal to initialize, then send command
+        call timer_start(500, {-> s:SendExplainCommand(bufnr('%'))})
+    endif
+endfunction
+
+" Send explain command to Claude terminal
+function! s:SendExplainCommand(bufnr)
+    " Construct the message
+    let l:line_text = s:selection_start == s:selection_end ? 
+        \ 'line ' . s:selection_start :
+        \ 'lines ' . s:selection_start . ' to ' . s:selection_end
+    let l:message = 'Look at ' . l:line_text . ' in file ' . s:selection_file . '. Please explain this code.'
+    
+    " Send text to terminal with Enter key
+    if has('nvim')
+        call chansend(getbufvar(a:bufnr, '&channel'), l:message . "\<CR>")
+    else
+        call term_sendkeys(a:bufnr, l:message . "\<CR>")
+    endif
+endfunction
+
+" Monitor Claude terminal and auto-close when finished
+function! s:MonitorClaudeTerminal()
+    let l:bufnr = bufnr('%')
+    let l:winnr = winnr()
+    
+    " Set up a timer to check terminal status
+    let l:timer_id = timer_start(100, function('s:CheckClaudeTerminalFinished', [l:bufnr, l:winnr]), {'repeat': -1})
+    
+    " Store timer ID in buffer variable for cleanup
+    call setbufvar(l:bufnr, 'vimclaude_monitor_timer', l:timer_id)
+endfunction
+
+" Check if Claude terminal has finished and close window
+function! s:CheckClaudeTerminalFinished(bufnr, winnr, timer_id)
+    " Check if buffer still exists
+    if !bufexists(a:bufnr)
+        call timer_stop(a:timer_id)
+        return
+    endif
+    
+    " Check if terminal job is finished
+    let l:job_status = term_getstatus(a:bufnr)
+    if l:job_status == 'finished'
+        " Stop the timer first
+        call timer_stop(a:timer_id)
+        
+        " Find and close the window containing this buffer
+        let l:win_id = bufwinid(a:bufnr)
+        if l:win_id != -1
+            " Use try-catch to handle any errors
+            try
+                call win_execute(l:win_id, 'close!')
+            catch
+                " If close fails, try alternative approach
+                let l:winnr = bufwinnr(a:bufnr)
+                if l:winnr != -1
+                    execute l:winnr . 'wincmd c'
+                endif
+            endtry
+        endif
+        
+        " Try to delete the buffer if it still exists
+        if bufexists(a:bufnr)
+            try
+                execute 'bdelete!' a:bufnr
+            catch
+                " Buffer might be modified or have other issues
+                " Try wiping it out completely
+                try
+                    execute 'bwipeout!' a:bufnr
+                catch
+                    " If all else fails, just ignore
+                endtry
+            endtry
+        endif
     endif
 endfunction
 
@@ -1130,6 +1209,14 @@ if g:vimclaude_enabled
         
         " Update mtime when saving files
         autocmd BufWritePost * let s:file_mtimes[expand('<afile>:p')] = getftime(expand('<afile>:p'))
+        
+        " Auto-close Claude terminal windows when the terminal exits
+        if has('nvim')
+            autocmd TermClose * if expand('<afile>') =~ 'Claude' | close | endif
+        else
+            " For Vim, set up terminal finish monitoring
+            autocmd TerminalWinOpen * if expand('<afile>') =~ 'Claude' | call s:MonitorClaudeTerminal() | endif
+        endif
     augroup END
 endif
 
