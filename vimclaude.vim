@@ -653,6 +653,122 @@ function! VimClaudeStatus()
     endif
 endfunction
 
+function! VimClaudeAskAboutSelection() range
+    " Get the visual selection line numbers
+    let l:start_line = line("'<")
+    let l:end_line = line("'>")
+    
+    " Store selection info for later use
+    let s:selection_start = l:start_line
+    let s:selection_end = l:end_line
+    
+    " Show popup with line range
+    if exists('*popup_create')
+        try
+            " Create light grey highlight
+            highlight VimClaudePopup ctermbg=254 ctermfg=0
+            
+            " Create popup content showing the selected line range
+            let l:line_text = l:start_line == l:end_line ? 
+                \ 'Ask Claude about line ' . l:start_line :
+                \ 'Ask Claude about lines ' . l:start_line . ' to ' . l:end_line
+            
+            let l:popup_id = popup_create([
+                \ l:line_text,
+                \ '════════════════════════════════',
+                \ '',
+                \ '1. Ask a question',
+                \ '2. Explain this code',
+                \ '3. Find bugs',
+                \ '4. Suggest improvements',
+                \ '5. Add comments',
+                \ '6. Write tests',
+                \ '7. Refactor',
+                \ '',
+                \ 'Press number or ESC'
+                \ ], {
+                \ 'pos': 'center',
+                \ 'highlight': 'VimClaudePopup',
+                \ 'border': [],
+                \ 'padding': [0, 1, 0, 1]
+                \ })
+            
+            " Force redraw
+            redraw!
+            
+            " Wait for input
+            while 1
+                let l:key = getchar()
+                if l:key == 27  " ESC
+                    call popup_close(l:popup_id)
+                    echo "VimClaude: Cancelled"
+                    return
+                elseif l:key >= 49 && l:key <= 55  " '1' to '7'
+                    let l:choice = l:key - 48
+                    call popup_close(l:popup_id)
+                    call s:HandleAskClaudeChoice(l:choice)
+                    return
+                endif
+            endwhile
+            
+        catch
+            " If popup fails, use fallback menu
+            call s:ShowAskClaudeMenuFallback()
+        endtry
+    else
+        " Fallback for older Vim versions
+        call s:ShowAskClaudeMenuFallback()
+    endif
+endfunction
+
+" Handle the choice from the Ask Claude menu
+function! s:HandleAskClaudeChoice(choice)
+    let l:line_text = s:selection_start == s:selection_end ? 
+        \ 'line ' . s:selection_start :
+        \ 'lines ' . s:selection_start . ' to ' . s:selection_end
+    
+    if a:choice == 1
+        echo "VimClaude: Ready to ask about " . l:line_text
+    elseif a:choice == 2
+        echo "VimClaude: Explaining code on " . l:line_text
+    elseif a:choice == 3
+        echo "VimClaude: Finding bugs in " . l:line_text
+    elseif a:choice == 4
+        echo "VimClaude: Suggesting improvements for " . l:line_text
+    elseif a:choice == 5
+        echo "VimClaude: Adding comments to " . l:line_text
+    elseif a:choice == 6
+        echo "VimClaude: Writing tests for " . l:line_text
+    elseif a:choice == 7
+        echo "VimClaude: Refactoring " . l:line_text
+    endif
+endfunction
+
+" Fallback menu for older Vim versions
+function! s:ShowAskClaudeMenuFallback()
+    let l:line_text = s:selection_start == s:selection_end ? 
+        \ 'line ' . s:selection_start :
+        \ 'lines ' . s:selection_start . ' to ' . s:selection_end
+    
+    let l:choices = [
+        \ "Ask Claude about " . l:line_text . ":",
+        \ "1. Ask a question",
+        \ "2. Explain this code",
+        \ "3. Find bugs",
+        \ "4. Suggest improvements",
+        \ "5. Add comments",
+        \ "6. Write tests",
+        \ "7. Refactor"
+    \ ]
+    
+    let l:choice = inputlist(l:choices)
+    if l:choice >= 1 && l:choice <= 7
+        call s:HandleAskClaudeChoice(l:choice)
+    else
+        echo "VimClaude: Cancelled"
+    endif
+endfunction
+
 " Function to launch Claude with specific flags
 function! s:LaunchClaudeWithFlags(flags)
     let l:claude_cmd = g:vimclaude_claude_command
@@ -660,6 +776,19 @@ function! s:LaunchClaudeWithFlags(flags)
     
     try
         execute 'vertical terminal ' . l:full_cmd
+        
+        " Set terminal buffer name to "Claude"
+        if has('nvim')
+            " Neovim: rename the buffer
+            execute 'file Claude'
+        else
+            " Vim: set buffer name
+            let l:bufnr = bufnr('%')
+            execute 'file Claude'
+            " Also try to set the terminal title
+            call term_settitle(l:bufnr, 'Claude')
+        endif
+        
         if g:vimclaude_notify
             let l:session_type = a:flags == '--continue' ? 'continuing session' : 
                                \ a:flags == '--resume' ? 'resuming session' : 'new session'
@@ -918,6 +1047,7 @@ command! VimClaudeStop call VimClaudeStop()
 command! VimClaudeToggle call VimClaudeToggle()
 command! VimClaudeStatus call VimClaudeStatus()
 command! VimClaudeLaunch call VimClaudeLaunch()
+command! -range VimClaudeAskAboutSelection <line1>,<line2>call VimClaudeAskAboutSelection()
 command! -nargs=? VimClaudeDebug call VimClaudeDebug(<q-args> == '' ? expand('%:p') : <q-args>)
 
 " Auto-start monitoring when Vim starts (if enabled)
@@ -937,4 +1067,5 @@ if !exists('g:vimclaude_no_mappings')
     nnoremap <silent> <leader>vcr :VimClaudeToggle<CR>
     nnoremap <silent> <leader>vcs :VimClaudeStatus<CR>
     nnoremap <silent> <leader>vcl :VimClaudeLaunch<CR>
+    vnoremap <silent> <leader>vc :call VimClaudeAskAboutSelection()<CR>
 endif
