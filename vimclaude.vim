@@ -939,8 +939,10 @@ function! s:LaunchClaudeWithFlags(flags)
             " Vim: set buffer name
             let l:bufnr = bufnr('%')
             execute 'file Claude'
-            " Also try to set the terminal title
-            call term_settitle(l:bufnr, 'Claude')
+            " Also try to set the terminal title if function exists
+            if exists('*term_settitle')
+                call term_settitle(l:bufnr, 'Claude')
+            endif
         endif
         
         if g:vimclaude_notify
@@ -1228,6 +1230,6 @@ endif
 if !exists('g:vimclaude_no_mappings')
     nnoremap <silent> <leader>vcr :VimClaudeToggle<CR>
     nnoremap <silent> <leader>vcs :VimClaudeStatus<CR>
-    nnoremap <silent> <leader>vcl :VimClaudeLaunch<CR>
+    nnoremap <silent> <leader>vc :VimClaudeLaunch<CR>
     vnoremap <silent> <leader>vc :call VimClaudeAskAboutSelection()<CR>
 endif
