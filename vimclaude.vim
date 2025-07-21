@@ -835,6 +835,36 @@ function! s:LaunchOrSwitchToClaude()
     endif
 endfunction
 
+" Launch Claude for user question (context only, no auto-send)
+function! s:LaunchOrSwitchToClaudeForQuestion()
+    let l:claude_bufnr = s:FindClaudeTerminal()
+    
+    if l:claude_bufnr != -1
+        " Claude terminal exists, find its window
+        let l:winnr = bufwinnr(l:claude_bufnr)
+        if l:winnr != -1
+            " Window is visible, switch to it
+            execute l:winnr . 'wincmd w'
+            if g:vimclaude_notify
+                echo "VimClaude: Switched to Claude - type your question"
+            endif
+        else
+            " Buffer exists but not visible (hidden), open it in vertical split
+            execute 'vertical sbuffer ' . l:claude_bufnr
+            if g:vimclaude_notify
+                echo "VimClaude: Restored Claude - type your question"
+            endif
+        endif
+        " Send only the context reference (no question)
+        call s:SendContextReference(l:claude_bufnr)
+    else
+        " No Claude terminal exists, launch new one
+        call s:LaunchClaudeWithFlags('')
+        " Wait a moment for terminal to initialize, then send context
+        call timer_start(500, {-> s:SendContextReference(bufnr('%'))})
+    endif
+endfunction
+
 " Send explain command to Claude terminal
 function! s:SendExplainCommand(bufnr)
     " Construct the message
@@ -852,6 +882,22 @@ function! s:SendExplainCommand(bufnr)
         call term_sendkeys(a:bufnr, l:message)
         " Send Enter key separately after a longer delay
         call timer_start(300, {-> term_sendkeys(a:bufnr, "\r")})
+    endif
+endfunction
+
+" Send context reference only (for user questions)
+function! s:SendContextReference(bufnr)
+    " Construct the context message
+    let l:line_text = s:selection_start == s:selection_end ? 
+        \ 'line ' . s:selection_start :
+        \ 'lines ' . s:selection_start . ' to ' . s:selection_end
+    let l:message = 'Look at ' . l:line_text . ' in file ' . s:selection_file . '. '
+    
+    " Send text to terminal (no Enter key - user will type their question)
+    if has('nvim')
+        call chansend(getbufvar(a:bufnr, '&channel'), l:message)
+    else
+        call term_sendkeys(a:bufnr, l:message)
     endif
 endfunction
 
@@ -920,7 +966,8 @@ function! s:HandleAskClaudeChoice(choice)
         \ 'lines ' . s:selection_start . ' to ' . s:selection_end
     
     if a:choice == 1
-        echo "VimClaude: Ready to ask about " . l:line_text
+        " Ask a question - launch Claude and send context only
+        call s:LaunchOrSwitchToClaudeForQuestion()
     elseif a:choice == 2
         " Explain this code - launch or switch to Claude
         call s:LaunchOrSwitchToClaude()
@@ -1232,7 +1279,29 @@ function! VimClaudeLaunch()
         return
     endif
     
-    " Show session selection menu
+    " First check if Claude terminal already exists (hidden or visible)
+    let l:claude_bufnr = s:FindClaudeTerminal()
+    
+    if l:claude_bufnr != -1
+        " Claude terminal exists, check if it's hidden or visible
+        let l:winnr = bufwinnr(l:claude_bufnr)
+        if l:winnr == -1
+            " Claude is hidden, restore it and skip the popup
+            execute 'vertical sbuffer ' . l:claude_bufnr
+            if g:vimclaude_notify
+                echo "VimClaude: Terminal restored from background"
+            endif
+        else
+            " Claude is visible, switch to it and skip the popup
+            execute l:winnr . 'wincmd w'
+            if g:vimclaude_notify
+                echo "VimClaude: Switched to existing Claude terminal"
+            endif
+        endif
+        return
+    endif
+    
+    " No Claude terminal exists, show session selection menu
     call s:ShowSessionMenu()
 endfunction
 
