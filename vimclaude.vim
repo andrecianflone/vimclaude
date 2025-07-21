@@ -653,6 +653,45 @@ function! VimClaudeStatus()
     endif
 endfunction
 
+function! VimClaudeToggleTerminal()
+    " Check if Claude terminal is visible in current window
+    if &buftype == 'terminal' && bufname('%') =~ '^Claude'
+        " Claude is in current window, hide it
+        hide
+        if g:vimclaude_notify
+            echo "VimClaude: Terminal hidden (still running in background)"
+        endif
+        return
+    endif
+    
+    " Check if Claude terminal exists (visible or hidden)
+    let l:claude_bufnr = s:FindClaudeTerminal()
+    
+    if l:claude_bufnr != -1
+        " Claude terminal exists, check if visible
+        let l:winnr = bufwinnr(l:claude_bufnr)
+        if l:winnr != -1
+            " Claude is visible in another window, switch to it and hide
+            execute l:winnr . 'wincmd w'
+            hide
+            if g:vimclaude_notify
+                echo "VimClaude: Terminal hidden (still running in background)"
+            endif
+        else
+            " Claude is hidden, show it in vertical split
+            execute 'vertical sbuffer ' . l:claude_bufnr
+            if g:vimclaude_notify
+                echo "VimClaude: Terminal restored from background"
+            endif
+        endif
+    else
+        " No Claude terminal exists
+        if g:vimclaude_notify
+            echo "VimClaude: No Claude terminal found"
+        endif
+    endif
+endfunction
+
 function! VimClaudeAskAboutSelection() range
     " Get the visual selection line numbers
     let l:start_line = line("'<")
@@ -780,10 +819,10 @@ function! s:LaunchOrSwitchToClaude()
                 echo "VimClaude: Switched to existing Claude terminal"
             endif
         else
-            " Buffer exists but not visible, open it in vertical split
+            " Buffer exists but not visible (hidden), open it in vertical split
             execute 'vertical sbuffer ' . l:claude_bufnr
             if g:vimclaude_notify
-                echo "VimClaude: Opened existing Claude terminal"
+                echo "VimClaude: Restored Claude terminal from background"
             endif
         endif
         " Send the explain command to existing terminal
@@ -1203,6 +1242,7 @@ command! VimClaudeStop call VimClaudeStop()
 command! VimClaudeToggle call VimClaudeToggle()
 command! VimClaudeStatus call VimClaudeStatus()
 command! VimClaudeLaunch call VimClaudeLaunch()
+command! VimClaudeToggleTerminal call VimClaudeToggleTerminal()
 command! -range VimClaudeAskAboutSelection <line1>,<line2>call VimClaudeAskAboutSelection()
 command! -nargs=? VimClaudeDebug call VimClaudeDebug(<q-args> == '' ? expand('%:p') : <q-args>)
 
@@ -1232,4 +1272,12 @@ if !exists('g:vimclaude_no_mappings')
     nnoremap <silent> <leader>vcs :VimClaudeStatus<CR>
     nnoremap <silent> <leader>vc :VimClaudeLaunch<CR>
     vnoremap <silent> <leader>vc :call VimClaudeAskAboutSelection()<CR>
+    nnoremap <silent> <leader>vct :VimClaudeToggleTerminal<CR>
+    
+    " Terminal mode mapping to hide Claude terminal
+    if has('nvim')
+        tnoremap <silent> <leader>vct <C-\><C-n>:VimClaudeToggleTerminal<CR>
+    else
+        tnoremap <silent> <leader>vct <C-w>:VimClaudeToggleTerminal<CR>
+    endif
 endif
